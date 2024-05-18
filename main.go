@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -11,6 +12,9 @@ import (
 const sourceFile = "raceboat.mp4"
 
 func main() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Welcome to our video streaming platform!")
+	})
 	http.HandleFunc("/stream", handleStream)
 	fmt.Println("Starting server on :8080")
 	http.ListenAndServe(":8080", nil)
@@ -72,12 +76,11 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.FormatInt(end-start+1, 10))
 	w.WriteHeader(http.StatusPartialContent)
 
-	buffer := make([]byte, end-start+1)
-	_, err = file.ReadAt(buffer, start)
+	_, err = file.Seek(start, 0)
 	if err != nil {
-		http.Error(w, "File read error.", http.StatusInternalServerError)
+		http.Error(w, "File positioning error. ", http.StatusInternalServerError)
 		return
 	}
-
-	w.Write(buffer)
+	buffer := make([]byte, 64*1024) // 64KB buffer size
+	io.CopyBuffer(w, &io.LimitedReader{R: file, N: end - start + 1}, buffer)
 }
