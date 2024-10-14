@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,7 +19,7 @@ func main() {
 	})
 	http.HandleFunc("/stream", handleStream)
 	fmt.Println("Starting server on :8080")
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 func handleStream(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +28,9 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "File not found.", http.StatusNotFound)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
 
 	fi, err := file.Stat()
 	if err != nil {
@@ -82,5 +86,9 @@ func handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	buffer := make([]byte, 64*1024) // 64KB buffer size
-	io.CopyBuffer(w, &io.LimitedReader{R: file, N: end - start + 1}, buffer)
+	_, err = io.CopyBuffer(w, &io.LimitedReader{R: file, N: end - start + 1}, buffer)
+	if err != nil {
+		log.Println("Error writing buffer:", err)
+		return
+	}
 }
